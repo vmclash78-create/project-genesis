@@ -78,17 +78,52 @@ function download(filename: string, content: string, mime = "text/plain") {
   URL.revokeObjectURL(url);
 }
 
+async function copyText(value: string): Promise<boolean> {
+  // Try modern async clipboard first
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+  } catch {
+    // fall through to legacy fallback (permissions-policy in iframes blocks the async API)
+  }
+  // Legacy fallback — works inside sandboxed iframes (like the Lovable preview)
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = value;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.top = "0";
+    ta.style.left = "0";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    ta.setSelectionRange(0, value.length);
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
 function CopyButton({ value, label = "Copiar" }: { value: string; label?: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <Button
       size="sm"
       variant="outline"
-      onClick={() => {
-        navigator.clipboard.writeText(value);
-        setCopied(true);
-        toast.success("Copiado");
-        setTimeout(() => setCopied(false), 1500);
+      onClick={async () => {
+        const ok = await copyText(value);
+        if (ok) {
+          setCopied(true);
+          toast.success("Copiado");
+          setTimeout(() => setCopied(false), 1500);
+        } else {
+          toast.error("Não foi possível copiar. Abra em nova aba.");
+        }
       }}
     >
       {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
@@ -199,7 +234,7 @@ function PainelMigracao() {
     toast.success(`${Object.keys(secrets).length} secret(s) exportado(s)`);
   };
 
-  const copyAll = () => {
+  const copyAll = async () => {
     if (!data) return;
     const secretsText = Object.entries(data.secrets ?? {})
       .map(([k, v]) => `${k}=${v}`)
@@ -216,8 +251,9 @@ function PainelMigracao() {
       "═══ SECRETS ═══",
       secretsText,
     ].join("\n");
-    navigator.clipboard.writeText(text);
-    toast.success("Tudo copiado");
+    const ok = await copyText(text);
+    if (ok) toast.success("Tudo copiado");
+    else toast.error("Não foi possível copiar. Abra em nova aba.");
   };
 
   const extraSecrets = data?.secrets ?? {};
