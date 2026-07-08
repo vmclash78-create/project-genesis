@@ -234,7 +234,7 @@ function PainelMigracao() {
     toast.success(`${Object.keys(secrets).length} secret(s) exportado(s)`);
   };
 
-  const copyAll = () => {
+  const copyAll = async () => {
     if (!data) return;
     const secretsText = Object.entries(data.secrets ?? {})
       .map(([k, v]) => `${k}=${v}`)
@@ -251,8 +251,9 @@ function PainelMigracao() {
       "═══ SECRETS ═══",
       secretsText,
     ].join("\n");
-    navigator.clipboard.writeText(text);
-    toast.success("Tudo copiado");
+    const ok = await copyText(text);
+    if (ok) toast.success("Tudo copiado");
+    else toast.error("Não foi possível copiar. Abra em nova aba.");
   };
 
   const extraSecrets = data?.secrets ?? {};
